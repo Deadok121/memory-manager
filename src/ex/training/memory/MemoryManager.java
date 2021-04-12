@@ -1,17 +1,30 @@
 package ex.training.memory;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.Stack;
+import lombok.Getter;
 
 public class MemoryManager {
+    @Getter
     private MemorySegment[] cells;
+    @Getter
     private Stack<MemorySegment> freeSegments;
+    @Getter
+    private LinkedList<MemorySegment> segments;
+
+    private final int n;
 
     public MemoryManager(int n) {
         cells = new MemorySegment[n];
-        MemorySegment ms = new MemorySegment();
-        ms.length = n;
+        MemorySegment ms = new MemorySegment(n);
+        segments = new LinkedList<>();
         freeSegments = new Stack<>();
+        segments.add(ms);
         freeSegments.push(ms);
+        this.n = n;
     }
 
     public int malloc(int mallocCount) {
@@ -19,100 +32,53 @@ public class MemoryManager {
             return -1;
         }
 
-        MemorySegment lastFree = popLastFree();
-        int length = lastFree.length;
-        if (length < mallocCount) {
+        MemorySegment recentFree = freeSegments.peek();
+        int freeLength = recentFree.length;
+        if (freeLength < mallocCount) {
             return -1;
         }
+        freeSegments.pop();
 
-        MemorySegment newSegment = new MemorySegment();
-        newSegment.length = mallocCount;
-        newSegment.status = SegmentStatus.ALLOCATED;
-        MemorySegment prev = lastFree.prev;
-        MemorySegment next = lastFree.next;
-        if (prev != null) {
-            newSegment.prev = prev;
-            prev.next = newSegment;
-        }
-        if (length != mallocCount) {
-            MemorySegment free = new MemorySegment();
-            free.length = length - mallocCount;
-            newSegment.next = free;
-            free.prev = newSegment;
-            if (next != null) {
-                next.prev = free;
-                free.next = next;
-            }
+        MemorySegment newSegment = new MemorySegment(mallocCount);
+        newSegment.free = false;
+        newSegment.memoryStartIndex = n - freeLength;
+        int result = allocateInRecentFree(newSegment, recentFree);
+        Arrays.fill(cells, newSegment.memoryStartIndex, mallocCount, newSegment);
+        return result;
+    }
+
+    private int allocateInRecentFree(MemorySegment newSegment, MemorySegment recentFree) {
+        int index = segments.indexOf(recentFree);
+        var iterator = segments.listIterator(index);
+        iterator.next();
+        iterator.remove();
+
+        boolean newSegmentSmaller = newSegment.length <= recentFree.length;
+        if (newSegmentSmaller) {
+            var difference = recentFree.length - newSegment.length;
+            var free = new MemorySegment(difference);
+            iterator.add(newSegment);
+            iterator.add(free);
             freeSegments.push(free);
+        } else {
+            iterator.add(newSegment);
         }
-
         return 0;
     }
 
     public int free(int i) {
-        MemorySegment memorySegment = cells[i];
-        if (memorySegment == null) {
-            return -1;
-        }
-        cells[i] = null;
-
-        int length = memorySegment.length;
-        memorySegment.status = SegmentStatus.DELETED;
-        MemorySegment prev = memorySegment.prev;
-        MemorySegment next = memorySegment.next;
-        MemorySegment newSegment = new MemorySegment();
-        freeSegments.push(newSegment);
-        if (prev != null) {
-            if (prev.status == SegmentStatus.FREE) {
-                prev.status = SegmentStatus.DELETED;
-                length += prev.length;
-                MemorySegment previousAllocated = prev.prev;
-                if (previousAllocated != null) {
-                    previousAllocated.next = newSegment;
-                    newSegment.prev = previousAllocated;
-                }
-                freeSegments.push(prev);
-            } else {
-                prev.next = newSegment;
-                newSegment.prev = prev;
-            }
-        }
-        if (next != null && next.status == SegmentStatus.FREE) {
-            next.status = SegmentStatus.DELETED;
-            length += next.length;
-            MemorySegment nextAllocated = next.next;
-            if (nextAllocated != null) {
-                nextAllocated.prev = newSegment;
-                newSegment.next = nextAllocated;
-            }
-            freeSegments.push(next);
-        }
-        newSegment.length = length;
         return 0;
     }
 
-    private MemorySegment popLastFree() {
-        if (freeSegments.isEmpty()) {
-            return null;
-        }
-        MemorySegment peek = freeSegments.pop();
-        while (peek.status != SegmentStatus.FREE) {
-            peek = freeSegments.pop();
-        }
-        return peek;
-    }
-}
-
-enum SegmentStatus {
-    FREE,
-    DELETED,
-    ALLOCATED
 }
 
 class MemorySegment {
     int length;
-    SegmentStatus status = SegmentStatus.FREE;
-    MemorySegment prev;
-    MemorySegment next;
+    int memoryStartIndex;
+    boolean free = true;
+
+    public MemorySegment(int length) {
+        this.length = length;
+    }
 }
 
