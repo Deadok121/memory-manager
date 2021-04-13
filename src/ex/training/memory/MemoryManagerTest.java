@@ -32,9 +32,9 @@ public class MemoryManagerTest {
 
     @Test
     public void freeTest() {
-
         var startIndex = memoryManager.malloc(500);
         memoryManager.free(250);
+
         assertEquals(1,memoryManager.getSegments().size());
         assertEquals(1, memoryManager.getFreeSegments().size());
     }

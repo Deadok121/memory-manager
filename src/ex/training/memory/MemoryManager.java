@@ -110,6 +110,7 @@ public class MemoryManager {
         newFreeSegment.memoryStartIndex = hasPrevious ? prevStartIndex : current.memoryStartIndex;
         iterator.add(newFreeSegment);
         freeSegments.push(newFreeSegment);
+        Arrays.fill(cells, newFreeSegment.memoryStartIndex, newSegmentLength, null);
         return 0;
     }
 
